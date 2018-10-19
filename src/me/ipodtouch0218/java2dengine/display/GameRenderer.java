@@ -13,7 +13,6 @@ import java.util.Iterator;
 import javax.swing.JComponent;
 
 import me.ipodtouch0218.java2dengine.GameEngine;
-import me.ipodtouch0218.java2dengine.display.ui.UICanvas;
 import me.ipodtouch0218.java2dengine.object.GameObject; 
 
 public class GameRenderer extends JComponent {
@@ -32,8 +31,6 @@ public class GameRenderer extends JComponent {
 	private double resizeDecay;
 	
 	private VolatileImage renderImage;
-	private UICanvas canvas; 
-	
 	private int oldx,oldy;
 	
 	public GameRenderer(GameEngine engine) {
@@ -61,7 +58,6 @@ public class GameRenderer extends JComponent {
 		
 		
 		renderGameObjects(g);
-		renderUI(g);
 		
 		if (background != null) {
 			g.setComposite(AlphaComposite.DstOver);
@@ -125,12 +121,6 @@ public class GameRenderer extends JComponent {
 		if (obj == null) { return; }
 		obj.render(g);
 	}
-	
-	private void renderUI(Graphics2D g) {
-		if (canvas != null)
-		canvas.render(g);
-	}
-
 
 	//---------//
 	
