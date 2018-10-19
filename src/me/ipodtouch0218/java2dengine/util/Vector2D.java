@@ -53,6 +53,12 @@ public class Vector2D implements Cloneable {
 		
 		return this;
 	}
+	public Vector2D subtract(double x, double y) {
+		dx-=x;
+		dy-=y;
+		
+		return this;
+	}
 	
 	public Vector2D multiply(double m) {
 		dx*=m;

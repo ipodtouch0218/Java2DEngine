@@ -2,7 +2,7 @@ package me.ipodtouch0218.java2dengine.display;
 
 import java.awt.Rectangle;
 
-import me.ipodtouch0218.java2dengine.GameObject;
+import me.ipodtouch0218.java2dengine.object.GameObject;
 
 public class GameCamera {
 

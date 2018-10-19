@@ -8,94 +8,98 @@ import java.awt.image.BufferedImage;
 
 import javax.swing.JFrame;
 
-public class GameWindow {
+import org.jogamp.glg2d.GLG2DCanvas;
 
-	private static int setWidth = 300, setHeight = 300;
+import me.ipodtouch0218.java2dengine.GameEngine;
+
+public class GameWindow extends JFrame {
+
+	private static final long serialVersionUID = 1L;
+	
+	private static GameWindow instance;
+	private static int setWidth = 500, setHeight = 500;
     private static double scaleX = 1, scaleY = 1;
     
-	private static JFrame window;
-	private static ScaleMode scaleMode = ScaleMode.SCALE_RELATIVE;
-	
-	public GameWindow(int width, int height, String title, GameRenderer engine) {
-		JFrame frame = new JFrame(title);
-		window = frame;
+	public GameWindow() {	
+		instance = this;
+		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		setLocationRelativeTo(null);
 		
-		setWindowSize(width, height);
-		
-		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		frame.setLocationRelativeTo(null);
-		
-		frame.setFocusable(true);
-		frame.add(engine);
-		frame.setVisible(true);
-		frame.toFront();
-		frame.requestFocus();
-		frame.requestFocusInWindow();
+		setFocusable(true);
+		setContentPane(GameEngine.getInstance().getRenderer());
+		setVisible(true);
+		pack();
+		toFront();		
+		requestFocus();
+		requestFocusInWindow();
 	}
 	
 	//---Setters---//
+	public static void center() {
+		instance.setLocationRelativeTo(null);
+	}
 	public static void setScaleSize(double xScale, double yScale) {
 		scaleX = xScale;
 		scaleY = yScale;
+		
+		Dimension size = new Dimension((int) (setWidth*scaleX), (int) (setHeight*scaleY)+47);
+		getWindow().setPreferredSize(size);
+		getWindow().setSize(size);
 	}
 	
 	public static void setWindowSize(int width, int height) {
 		setWidth = width;
 		setHeight = height;
 		
-		Dimension size = new Dimension((int) (width*scaleX), (int) (height*scaleY));
-		window.setMinimumSize(size);
-		window.setPreferredSize(size);
-		window.setSize(size);
+		Dimension size = new Dimension((int) (width*scaleX), (int) (height*scaleY)+47);
+		getWindow().getContentPane().setPreferredSize(size);
+		getWindow().pack();
 	}
 	
-	public static void setIconImage(Image image) {
-		window.setIconImage(image);
+	public static void setIcon(Image image) {
+		getWindow().setIconImage(image);
 	}
 	
 	public static void lockSize(Dimension size) {
-		window.setMaximumSize(size);
+		getWindow().getContentPane().setMaximumSize(size);
 	}
 	public static void unlockSize() {
-		window.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+		getWindow().getContentPane().setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 	}
 	
-	public static void setName(String name) { window.setTitle(name); }
-	public static void setScaleMode(ScaleMode mode) { scaleMode = mode; }
+	public static void setWindowName(String name) { getWindow().setTitle(name); }
 	
 	//---Getters---//
-	public static ScaleMode getScaleMode() { return scaleMode; }
 	public static int getSetWidth() { return setWidth; }
 	public static int getSetHeight() { return setHeight; }
 	public static double getSetScaleX() { return scaleX; }
 	public static double getSetScaleY() { return scaleY; }
 	
-	public static double getActualScaleX() { return (double) getActualWidth()/(double) setWidth; }
-	public static double getActualScaleY() { return (double) getActualHeight()/(double) setHeight; }
 	public static int getActualWidth() { 
-		if (window == null) return 0;
-		return (int) (window.getWidth()/scaleX); 
+		if (instance == null) return 0;
+		return (int) (getWindow().getContentPane().getWidth()); 
 	}
 	public static int getActualHeight() { 
-		if (window == null) return 0;
-		return (int) (window.getHeight()/scaleY); 
+		if (instance == null) return 0;
+		return (int) (getWindow().getContentPane().getHeight()); 
 	}
 	
 	public static void setCursor(Image image, int x, int y) {
 		BufferedImage fakeImage = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
 		fakeImage.getGraphics().drawImage(image, 0, 0, null);
-		window.getRootPane().setCursor(Toolkit.getDefaultToolkit().createCustomCursor(fakeImage, new Point(x,y), "reticle"));
+		getWindow().getRootPane().setCursor(Toolkit.getDefaultToolkit().createCustomCursor(fakeImage, new Point(x,y), "reticle"));
 	}
 	
-	public static int getScaledWidth() { return (int) (getSetWidth()*getSetScaleX()*getActualScaleX()); }
-	public static int getScaledHeight() { return (int) (getSetHeight()*getSetScaleY()*getActualScaleY()); }
+	public static boolean hasUserFocus() { return getWindow().isFocused(); }
 	
-	public static JFrame getWindow() { return window; }
+	public static int getScaledWidth() { return (int) (getSetWidth()*getSetScaleX()); }
+	public static int getScaledHeight() { return (int) (getSetHeight()*getSetScaleY()); }
 	
 	
-	public static enum ScaleMode {
-		SCALE_RELATIVE,
-		INCREASE_SIZE,
-		DISABLE_SCALING;
+	
+	//----//
+	public static JFrame getWindow() {
+		if (instance == null) { new GameWindow(); }
+		return instance;
 	}
 }

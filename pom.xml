@@ -4,6 +4,22 @@
   <artifactId>Java2dEngine</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   
+	<dependencies>
+  		<dependency>
+    		<groupId>org.jogamp.glg2d</groupId>
+    		<artifactId>glg2d</artifactId>
+    		<version>0.3-SNAPSHOT</version>
+  		</dependency>
+	</dependencies>
+	<repositories>
+   		<repository>
+     		<id>glg2d-repo</id>
+     		<url>http://brandonborkholder.github.com/glg2d/maven2/</url>
+		</repository>
+	</repositories>
+  
+  
+  
   <build>
     <sourceDirectory>src</sourceDirectory>
     <plugins>

@@ -1,6 +1,6 @@
-package me.ipodtouch0218.java2dengine;
+package me.ipodtouch0218.java2dengine.object;
 
-import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.util.UUID;
 
 import me.ipodtouch0218.java2dengine.display.sprite.GameSprite;
@@ -11,22 +11,27 @@ public abstract class GameObject implements Cloneable {
 	protected double x = 0, y = 0;
 	protected SpriteAnimation animation;
 	protected GameSprite sprite;
+	private boolean rendering = true, ticking = true;
 	private UUID uuid = UUID.randomUUID();
+	private boolean exists = true;
 	
-	
-	public void tick() {}
+	public void tick(double delta) {}
+	public void onCreate() {}
 	public void onRemove() {}
+	public final void remove() {
+		exists = false;
+		onRemove();
+	}
 	
-	public void render(Graphics g) {
+	public void render(Graphics2D g) {
 		if (animation == null || animation.getCurrentFrame().getImage() == null) {
 			if (!(sprite == null || sprite.getImage() == null)) {
-				g.drawImage(sprite.getScaledImage(), (int) x, (int) y, null);
+				g.drawImage(sprite.getImage(), (int) x, (int) y, null);
 			}
 			return;
 		}
-		animation.update();
 		GameSprite image = animation.getCurrentFrame();
-		g.drawImage(image.getScaledImage(), (int) x-(image.getScaledImage().getWidth(null)/2), (int) y-(image.getScaledImage().getHeight(null)/2), null);
+		g.drawImage(image.getImage(), (int) x-(image.getImage().getWidth(null)/2), (int) y-(image.getImage().getHeight(null)/2), null);
 	}
 	
 
@@ -37,6 +42,8 @@ public abstract class GameObject implements Cloneable {
 	public double getY() { return y; }
 	public GameSprite getSprite() { return sprite; }
 	public SpriteAnimation getAnimation() { return animation; }
+	public boolean isRendering() { return rendering; }
+	public boolean isTicking() { return ticking; }
 	
 	//---Setters---//
 	public void setX(double x) { 
@@ -54,14 +61,22 @@ public abstract class GameObject implements Cloneable {
 	}
 	public void setAnimation(SpriteAnimation value) {
 		if (value == null) return;
-		if (animation != null && animation.equals(value)) { return; }
+		if (this.animation != null && this.animation.equals(value)) { return; }
 		animation = value.clone();
-		animation.start();
+		animation.start(true);
 	}
 	public void setUniqueId(UUID uid) {
 		this.uuid = uid;
 	}
-	
+	public void setTicking(boolean value) {
+		this.ticking = value;
+	}
+	public void setRendering(boolean value) {
+		this.rendering = value;
+	}
+	public boolean exists() {
+		return exists;
+	}
 	//---Others---//
 	public GameObject clone() {
 		try {

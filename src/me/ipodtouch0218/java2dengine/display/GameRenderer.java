@@ -1,76 +1,111 @@
 package me.ipodtouch0218.java2dengine.display;
 
-import java.awt.Canvas;
+import java.awt.AlphaComposite;
 import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.Image;
-import java.awt.Toolkit;
-import java.awt.image.BufferedImage;
-import java.awt.image.FilteredImageSource;
-import java.awt.image.ImageFilter;
-import java.awt.image.ImageProducer;
+import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsEnvironment;
+import java.awt.image.VolatileImage;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 
-import me.ipodtouch0218.java2dengine.GameEngine;
-import me.ipodtouch0218.java2dengine.GameObject;
-import me.ipodtouch0218.java2dengine.InputHandler;
-import me.ipodtouch0218.java2dengine.display.GameWindow.ScaleMode; 
+import javax.swing.JComponent;
 
-public class GameRenderer extends Canvas {
+import me.ipodtouch0218.java2dengine.GameEngine;
+import me.ipodtouch0218.java2dengine.display.ui.UICanvas;
+import me.ipodtouch0218.java2dengine.object.GameObject; 
+
+public class GameRenderer extends JComponent {
 
 	private static final long serialVersionUID = 1L;
+	private static final String os = System.getProperty("os.name").toLowerCase();
 	
-	private static Class<? extends GameObject>[] renderOrder;
-	private static GameCamera activeCamera = new GameCamera(500,500);
+	private static GameRenderer instance;
+	
+	private Class<? extends GameObject>[] renderOrder;
+	private GameCamera activeCamera = new GameCamera(500,500);
 	private GameEngine engine;
-	private static BufferedImage image;
-	private static Color backgroundColor = Color.black;
-	private static ImageFilter filter;
+	private Color backgroundColor = Color.black;
+	private static VolatileImage background;
+	private boolean showSize = true;
+	private double resizeDecay;
+	
+	private VolatileImage renderImage;
+	private UICanvas canvas; 
+	
+	private int oldx,oldy;
 	
 	public GameRenderer(GameEngine engine) {
-		new GameWindow(500, 500, "", this);
-		addKeyListener(new InputHandler(this));
-		addMouseListener(InputHandler.getInputHandler());
 		this.engine = engine;
+		instance = this;
 	}
 	
-	@SuppressWarnings("unchecked")
-	public void render() {
-		if (image == null) {
-			if (activeCamera == null) {
-				image = new BufferedImage(GameWindow.getSetWidth(), GameWindow.getSetHeight(), BufferedImage.TYPE_INT_ARGB);
-			} else {
-				image = new BufferedImage((int) activeCamera.getBounds().getWidth(), (int) activeCamera.getBounds().getHeight(), BufferedImage.TYPE_INT_ARGB);
-			}
-		}
-		if (getBufferStrategy() == null) {
-			createBufferStrategy(3);
-			return;
+	public void render(double delta) {
+		if (renderImage == null || renderImage.validate(gc) == VolatileImage.IMAGE_INCOMPATIBLE || renderImage.getWidth() != GameWindow.getSetWidth() || renderImage.getHeight() != GameWindow.getSetHeight()) {
+			renderImage = createVolatile(GameWindow.getSetWidth(), GameWindow.getSetHeight(), false);
+			renderImage.setAccelerationPriority(1);
 		}
 
-		Graphics g = image.getGraphics();
+		Graphics2D g = renderImage.createGraphics();
 		
-		g.setColor(backgroundColor);
-		if (activeCamera == null) {
-			g.fillRect(0, 0, GameWindow.getActualWidth(), GameWindow.getActualHeight());
+		if (background == null) {
+			g.setColor(backgroundColor);
+			g.fillRect(0, 0, GameWindow.getSetWidth(), GameWindow.getSetHeight());
+			g.setColor(Color.white);
 		} else {
-			g.fillRect(0, 0, (int) activeCamera.getBounds().getWidth(), (int) activeCamera.getBounds().getHeight());
+			g.drawImage(background, 0, 0, GameWindow.getSetWidth(), GameWindow.getSetHeight(), null);
 		}
-		g.setColor(Color.white);
 		
 		///
 		
-		ArrayList<GameObject> toRender = (ArrayList<GameObject>) engine.getAllGameObjects().clone();
+		
+		renderGameObjects(g);
+		renderUI(g);
+		
+		if (background != null) {
+			g.setComposite(AlphaComposite.DstOver);
+			g.drawImage(background, 0, 0, GameWindow.getSetWidth(), GameWindow.getSetHeight(), null);
+			g.setComposite(AlphaComposite.SrcOver);
+		}
+		
+		///
+		
+		if (oldx != GameWindow.getActualWidth() || oldy != GameWindow.getActualHeight()) {
+			resizeDecay = 2;
+		}
+		resizeDecay -= delta;
+		renderResizeInfo(g);
+		
+		
+		///
+		g.dispose();
+		getGraphics().drawImage(renderImage, 0, 0, GameWindow.getActualWidth(), GameWindow.getActualHeight(), null);
+		oldx = GameWindow.getActualWidth();
+		oldy = GameWindow.getActualHeight();
+		if (os.indexOf("mac") >= 0) {
+			GameWindow.getWindow().repaint();
+		}
+	}
+	private void renderResizeInfo(Graphics2D g) {
+		if (showSize && resizeDecay > 0) {
+			g.setColor(Color.WHITE);
+			g.drawString(GameWindow.getActualWidth() + " x " + GameWindow.getActualHeight(), 4, GameWindow.getSetHeight()-12);
+		}
+	}
+	
+	private void renderGameObjects(Graphics2D g) {
+		ArrayList<GameObject> toRender = engine.getAllGameObjects();
 		ArrayList<GameObject[]> remaining = new ArrayList<>();
 		
 		if (renderOrder != null) {
 			for (Class<? extends GameObject> render : renderOrder) {
 				ArrayList<GameObject> lastRenders = new ArrayList<>();
 				Iterator<GameObject> renders = toRender.iterator();
+				whileloop:
 				while (renders.hasNext()) {
 					GameObject nextObject = renders.next();
+					if (nextObject == null || !nextObject.isRendering()) { continue whileloop; }
 					if (render.isAssignableFrom(nextObject.getClass())) { 
 						lastRenders.add(nextObject);
 						renders.remove();
@@ -84,78 +119,70 @@ public class GameRenderer extends Canvas {
 		for (GameObject[] remains : remaining) {
 			Arrays.asList(remains).forEach(ob -> renderObj(ob, g));
 		}
-		
-		///
-		
-		int w = GameWindow.getSetWidth(), h = GameWindow.getSetHeight();
-		if (activeCamera != null) {
-			w = (int) activeCamera.getBounds().getWidth();
-			h = (int) activeCamera.getBounds().getHeight();
-		}
-		
-		Image finalImage = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-		Graphics finalGraphics = finalImage.getGraphics();
-		
-		finalGraphics.setColor(Color.BLACK);
-		finalGraphics.fillRect(0, 0, w, h);
-		
-		int x = 0, y = 0;
-		if (activeCamera != null) {
-			x = activeCamera.getX();
-			y = activeCamera.getY();
-		}
-		
-		if (GameWindow.getScaleMode() == ScaleMode.INCREASE_SIZE) {
-			finalGraphics.drawImage(image.getScaledInstance((int) (GameWindow.getActualWidth()*GameWindow.getSetScaleX()), (int) (GameWindow.getActualHeight()*GameWindow.getSetScaleY()), Image.SCALE_FAST), 0, 0, null);
-		}
-		if (GameWindow.getScaleMode() == ScaleMode.SCALE_RELATIVE) {
-			if (activeCamera == null) {
-				finalGraphics.drawImage(image.getScaledInstance(GameWindow.getActualWidth(), GameWindow.getActualHeight(), Image.SCALE_DEFAULT), 0, 0, null);
-			} else {
-				int xw = activeCamera.getWidth();
-				int yh = activeCamera.getHeight();
-				finalGraphics.drawImage(image.getSubimage(x, y, xw, yh).getScaledInstance(GameWindow.getActualWidth(), GameWindow.getActualHeight(), Image.SCALE_DEFAULT), 0, 0, null);
-			}
-		}
-
-		if (filter != null) {
-			ImageProducer producer = new FilteredImageSource(finalImage.getSource(), filter);  
-			finalImage = Toolkit.getDefaultToolkit().createImage(producer);
-		}
-		
-		getGraphics().drawImage(finalImage, 0, 0, null);
-		finalGraphics.dispose();
-		g.dispose();
 	}
 	
-	
-	private void renderObj(GameObject obj, Graphics g) {
+	private void renderObj(GameObject obj, Graphics2D g) {
+		if (obj == null) { return; }
 		obj.render(g);
 	}
+	
+	private void renderUI(Graphics2D g) {
+		if (canvas != null)
+		canvas.render(g);
+	}
 
 
+	//---------//
+	
+	//methods
+	public static void clearImage(VolatileImage img) {
+		Graphics2D newG = img.createGraphics();
+		newG.setComposite(AlphaComposite.Clear);
+		newG.fillRect(0, 0, img.getWidth(), img.getHeight());
+		newG.dispose();
+	}
+	
+	//setters
+	
 	@SafeVarargs
 	public static void setRenderPriority(Class<? extends GameObject>... classes) {
-		renderOrder = classes;
+		if (instance == null) { return; }
+		instance.renderOrder = classes; 
 	}
-	public static GameCamera getActiveCamera() { return activeCamera; }
 	public static void setActiveCamera(GameCamera cam) { 
-		activeCamera = cam; 
-		
-		if (activeCamera == null) {
-			image = new BufferedImage(GameWindow.getSetWidth(), GameWindow.getSetHeight(), BufferedImage.TYPE_INT_ARGB);
-		} else {
-			image = new BufferedImage((int) activeCamera.getBounds().getWidth(), (int) activeCamera.getBounds().getHeight(), BufferedImage.TYPE_INT_ARGB);
-		}
+		if (instance == null) { return; }
+		instance.activeCamera = cam; 
 	}
-	public static void setBackgroundColor(Color value) {
-		backgroundColor = value;
+	public static void setBackgroundColor(Color value) { 
+		if (instance == null) { return; }
+		instance.backgroundColor = value;
 	}
-	public BufferedImage getLastFrame() { return image; }
 
-	public static void setFilter(ImageFilter value) {
-		filter = value;
-	}  
-
+	//getters
+	public static GameCamera getActiveCamera() { 
+		if (instance == null) { return null; }
+		return instance.activeCamera; 
+	}
+	public static VolatileImage getLastFrame() { 
+		if (instance == null) { return null; }
+		return instance.renderImage; 
+	}
 	
+	//static methods
+	public static final GraphicsConfiguration gc = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
+	public static VolatileImage createVolatile(int width, int height, boolean translucent) {
+		VolatileImage newImg = gc.createCompatibleVolatileImage(width, height, (translucent ? VolatileImage.TRANSLUCENT : VolatileImage.BITMASK));
+		Graphics2D newG = newImg.createGraphics();
+		newG.setComposite(AlphaComposite.Clear);
+		newG.fillRect(0, 0, width, height);
+		newG.dispose();
+		return newImg;
+	}
+	public static void setBackground(VolatileImage bg) {
+		background = bg;
+	}
+
+	public static void removeBackground() {
+		background = null;
+	}
 }
