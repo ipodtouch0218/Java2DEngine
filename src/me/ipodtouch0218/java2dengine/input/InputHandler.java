@@ -36,8 +36,6 @@ public class InputHandler implements MouseListener {
 	private static boolean mouseLeftDown, mouseRightDown;
 	
 	private InputHandler(GameRenderer renderer) {
-		if (instance != null) { return; }
-		instance = this;
 		input = renderer.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW); 
 		act = renderer.getActionMap();
 	}
@@ -52,7 +50,7 @@ public class InputHandler implements MouseListener {
 	}
 	
 	public static InputHandler getInputHandler() {
-		if (instance == null) { instance = new InputHandler(GameEngine.getInstance().getRenderer()); }
+		if (instance == null) { instance = new InputHandler(GameEngine.getRenderer()); }
 		return instance;
 	}
 
@@ -154,6 +152,7 @@ public class InputHandler implements MouseListener {
 	}
 	
 	private static Point2D.Double calcMouseWorldPos() {
+		if (MouseInfo.getPointerInfo() == null) { return new Point2D.Double(-1,-1); }
 		int camX = GameRenderer.getActiveCamera() == null ? 0 : GameRenderer.getActiveCamera().getX();
 		int camY = GameRenderer.getActiveCamera() == null ? 0 : GameRenderer.getActiveCamera().getY();
 		
@@ -162,9 +161,8 @@ public class InputHandler implements MouseListener {
 		
 		Point mouseLoc = MouseInfo.getPointerInfo().getLocation();
 		
-		double mouseX = (int) (camX+(mouseLoc.getX()-GameWindow.getWindow().getLocationOnScreen().getX())*((double) camW/(double) GameWindow.getScaledWidth()));
-		double mouseY = (int) (camY+(mouseLoc.getY()-GameWindow.getWindow().getLocationOnScreen().getY())*((double) camH/(double) GameWindow.getScaledHeight()));
-		
+		double mouseX = (camX+(mouseLoc.getX()-GameWindow.getWindow().getLocationOnScreen().getX())*((double) camW/(double) GameWindow.getScaledWidth()));
+		double mouseY = (camY+(mouseLoc.getY()-GameWindow.getWindow().getLocationOnScreen().getY())*((double) camH/(double) GameWindow.getScaledHeight()));
 		return new Point2D.Double(mouseX, mouseY);
 	}
 }

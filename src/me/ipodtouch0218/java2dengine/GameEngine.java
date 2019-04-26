@@ -6,47 +6,35 @@ import java.util.UUID;
 
 import me.ipodtouch0218.java2dengine.display.GameRenderer;
 import me.ipodtouch0218.java2dengine.display.sprite.SpriteAnimation;
+import me.ipodtouch0218.java2dengine.event.EventHandler;
 import me.ipodtouch0218.java2dengine.input.InputHandler;
 import me.ipodtouch0218.java2dengine.object.GameObject;
 
 public class GameEngine implements Runnable {
 
-	private static GameEngine instance;
+	private static Thread runningThread;
 	
-	private GameRenderer display;
+	private static GameRenderer display = new GameRenderer(); //deals with rendering all objects, also contains the window the final image is drawn to.
+	private static boolean gameRunning = false; //if the game *should* be running. does not indicate if the game is actually running or not at the moment, only if it should be by the next loop.
 	
-	private Thread gameThread;
-	private boolean gameRunning = false;
-	private ArrayList<GameObject> gameObjects = new ArrayList<>();
+	private static ArrayList<GameObject> gameObjects = new ArrayList<>(); //generic list of all objects. looped through for rendering and ticking each frame.
+	private static ArrayList<EventHandler> eventHandlers = new ArrayList<>(); //list of event handlers, sorted by priority.
+	private static ArrayList<SyncTask> syncTasks = new ArrayList<>(); //list of all tasks. tasks are iterated through each tick method, and will call its runnable if the timer <= 0
 	
-	private double fps;
-	private double maxfps = 60;
+//	private static ArrayList<GameObject> toAddObjects = new ArrayList<>(); //list of all objects that should be created next tick.
+//	private static ArrayList<GameObject> toRemoveObjects = new ArrayList<>(); //list of all objects that should be removed on the tick
 	
+	private static double fps; //the current framerate of the engine
+	private static double maxfps = 60; //the maximum allowed framerate of the engine. 
+	private static boolean allowSlowdown; //if the game shoud slow-down or skip frames
 	
-	public GameEngine(double maxfps) {
-		if (instance != null) { return; }
-		instance = this;
-		
-		this.maxfps = maxfps;
-		display = new GameRenderer(this);
-	}
+	private static double timedelta; //the time delta since the last renderer frame, in seconds. used to keep all objects consistant across mutliple framerates.
 	
-	public synchronized void start() {
-		gameThread = new Thread(this);
-		gameRunning = true;
-		gameThread.start();
-	}
-	public synchronized void stop() {
-		try {
-			gameThread.join();
-			gameRunning = false;
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
+	private GameEngine() {}
 	
-	private ArrayList<Double> averageRenderTimes = new ArrayList<>();
 	public void run() {
+		
+		ArrayList<Double> averageRenderTimes = new ArrayList<>();
 		long lastTick = System.nanoTime();
         double tickdelta = 0;
         
@@ -63,15 +51,19 @@ public class GameEngine implements Runnable {
             }
         	
         	if (tickdelta >= 1) {
-        		double tickDeltaS = (now-lastTick) / 1e9;
+        		if (!allowSlowdown) {
+        			timedelta = (now-lastTick) / 1e9;
+        		} else {
+        			timedelta = 1/maxfps;
+        		}
         		
-        		tick(tickDeltaS);
-        		display.render(tickDeltaS);
+        		tick(timedelta);
+        		display.render(timedelta);
         		
-        		averageRenderTimes.add(tickDeltaS);
+        		averageRenderTimes.add(timedelta);
         		frames++;
         		
-        		updatefps += tickDeltaS * 2d;
+        		updatefps += timedelta * 2d; //update the current fps twice per second
         		if (updatefps >= 1) {
         			double average = 0;
         			Iterator<Double> it = averageRenderTimes.iterator();
@@ -92,103 +84,136 @@ public class GameEngine implements Runnable {
         stop();
 	}
 	
+	//main tick method, called once every frame.
 	private void tick(double delta) {
 		InputHandler.updateMouse();
-		try { 
-			for (GameObject object : gameObjects) {
-				if (object.isTicking()) {
-					object.tick(delta);
-				}
+		for (GameObject object : gameObjects.toArray(new GameObject[]{})) {
+			try {
+				object.tick(delta);
+			} catch (Exception e) {
+				e.printStackTrace();
 			}
-		} catch (Exception e) { e.printStackTrace(); }
+		}
 		tickAnimations(delta);
-		addQueuedObjects();
-		removeQueuedObjects();
+		tickTasks(delta);
 	}
 	
-	@SuppressWarnings("unchecked")
-	private void tickAnimations(double delta) {
-		for (SpriteAnimation anims : (ArrayList<SpriteAnimation>) SpriteAnimation.getAnimations().clone()) {
+	
+	private static void tickAnimations(double delta) {
+		for (SpriteAnimation anims : SpriteAnimation.getAnimations()) {
 			if (!anims.isStopped()) {
 				anims.update(delta);
 			}
 		}
 	}
-	private ArrayList<GameObject> toAddObjects = new ArrayList<>();
-	private ArrayList<GameObject> toRemoveObjects = new ArrayList<>();
-	private synchronized void removeQueuedObjects() {
-		if (toRemoveObjects.isEmpty()) { return; }
-		GameObject[] list = toRemoveObjects.toArray(new GameObject[]{});
-		for (GameObject toRemove : list) {
-			toRemove.remove();
-			gameObjects.remove(toRemove);
-			toRemoveObjects.remove(toRemove);
+	
+	public static void tickTasks(double delta) {
+		Iterator<SyncTask> tasks = syncTasks.iterator();
+		while (tasks.hasNext()) {
+			SyncTask task = tasks.next();
+			if (task == null) { continue; }
+			task.tick(delta);
+			if (task.countdownTimer <= 0) {
+				tasks.remove();
+			}
 		}
+	}	
+	
+	//---STATIC METHODS---//
+	
+	//Engine Start, Stop, and Speed
+	public static void start() {
+		InputHandler.getInputHandler();
+		System.setProperty("sun.java2d.opengl", "True");
+		if (gameRunning || (runningThread != null && runningThread.isAlive()))  {
+			return;
+		}
+		gameRunning = true;
+		runningThread = new Thread(new GameEngine());
+		runningThread.start();
 	}
-	private synchronized void addQueuedObjects() {
-		if (toAddObjects.isEmpty()) { return; }
-		GameObject[] list = toAddObjects.toArray(new GameObject[]{});
-		for (GameObject toAdd : list) {
-			gameObjects.add(toAdd);
-			toAdd.onCreate();
-			toAddObjects.remove(toAdd);
+	public static synchronized void stop() {
+		if (runningThread != null && runningThread.isAlive()) {
+			try {
+				runningThread.join();
+			} catch (InterruptedException e) {}
 		}
+		gameRunning = false;
 	}
 	
+	//Engine Rendering
+	public static GameRenderer getRenderer() {
+		return display;
+	}
+	public static void setMaxFPS(int newMaxFPS) {
+		maxfps = newMaxFPS;
+	}
+	public static void allowSlowdown(boolean value) {
+		allowSlowdown = value;
+	}
 	
-	public synchronized <T extends GameObject> T addGameObject(T object) {
-		if (gameObjects.contains(object) || object == null) {
-			return null;
+	//Add-Remove Objects
+	public static synchronized <T extends GameObject> T addGameObject(T object) {
+		if (object == null || gameObjects.contains(object)/* || toAddObjects.contains(object)*/) { //object already exists added, do not add it again as it would tick twice per loop
+			return null; 
 		}
-		toAddObjects.add(object);
-	
+//		toAddObjects.add(object);
+		object.onCreate();
+		gameObjects.add(object);
+		System.out.println("add: " + object);
 		return object;
 	}
-	public synchronized <T extends GameObject> T addGameObject(T object, double x, double y) {
-		addGameObject(object);
+	public static synchronized <T extends GameObject> T addGameObject(T object, double x, double y) {
 		object.setLocation(x, y);
+		addGameObject(object);
 		return object;
 	}
-	
-	public synchronized void removeGameObject(GameObject object) {
+	public static synchronized void removeGameObject(GameObject object) {
 		if (object == null) return;
-		toRemoveObjects.add(object);
+//		toRemoveObjects.add(object);
+		object.onRemove();
+		gameObjects.remove(object);
+		System.out.println("remove: " + object);
 	}
-	public synchronized void removeGameObject(UUID uuid) {
+	public static synchronized void removeGameObject(UUID uuid) {
 		GameObject toRemove = getGameObject(uuid);
 		removeGameObject(toRemove);
 	}
 	
-	public void setMaxFps(int fps) {
-		maxfps = fps;
-	}
-	
-	//---Getters---//
-	@SuppressWarnings("unchecked")
-	public ArrayList<GameObject> getAllGameObjects() { return (ArrayList<GameObject>) gameObjects.clone(); }
-	@SuppressWarnings("unchecked")
-	public <T extends GameObject> ArrayList<T> getAllGameObjects(Class<? extends T> cls) {
-		ArrayList<GameObject> objs = (ArrayList<GameObject>) gameObjects.clone();
-		Iterator<GameObject> it = (objs).iterator();
-		while (it.hasNext()) {
-			GameObject obj = it.next();
-			if (!cls.isAssignableFrom(obj.getClass())) {
-				it.remove();
-			}
-		}
-		return (ArrayList<T>) objs;
-	}
-	
-	public GameObject getGameObject(UUID uuid) { 
+	//Get Game Objects
+	public static GameObject getGameObject(UUID uuid) { 
 		for (GameObject object : gameObjects) {
-			if (object.getUniqueId().toString().equals(uuid.toString())) return object;
+			if (object.getUniqueId().equals(uuid)) return object;
 		}
 		return null;
 	}
-	public double getMaxFPS() { return maxfps; }
-	public double getFPS() { return fps; }
-	public GameRenderer getRenderer() { return display; }
-	//---Static---//
-	public static GameEngine getInstance() { return instance; }
-
+	public static ArrayList<GameObject> getAllGameObjects() { 
+		return gameObjects; 
+	}
+	@SuppressWarnings("unchecked")
+	public static <T extends GameObject> ArrayList<T> getAllGameObjects(Class<? extends T> cls) {
+		ArrayList<GameObject> matches = new ArrayList<>(); //objects where "cls" = getClass *OR* "cls" is a superclass of getClass
+		
+		Iterator<GameObject> iterator = gameObjects.iterator();
+		while (iterator.hasNext()) {
+			GameObject objToCheck = iterator.next();
+			if (cls.isAssignableFrom(objToCheck.getClass())) {
+				matches.add(objToCheck);
+			}
+		}
+		
+		return (ArrayList<T>) matches; //matches has to contain classes assignable to cls, so we can safely cast.
+	}
+	
+	//Sync Tasks
+	public static void scheduleSyncTask(TaskRunnable runnable, double timer) {
+		syncTasks.add(new SyncTask(runnable, timer));
+	}
+	public static void removeTask(SyncTask task) {
+		syncTasks.remove(task);
+	}
+	
+	//Value Getters
+	public static double getFPS() { return fps; }
+	public static double getMaxFPS() { return maxfps; }
 }

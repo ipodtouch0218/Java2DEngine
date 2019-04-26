@@ -32,6 +32,7 @@ public class Sound implements Cloneable {
 	private boolean playing;
 	
 	private Sound(String dir, boolean playMultiple) {
+		System.out.println("loaded sound: " + dir);
 		this.dir = dir;
 		this.playMultiple = playMultiple;
 		try {   

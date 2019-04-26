@@ -39,6 +39,21 @@ public class SpriteSheet {
 		cached.put(new Integer[]{x,y}, sprite);
 		return sprite;
 	}
+	public GameSprite getSprite(int x, int y, boolean transparent) {
+		if (sheet == null) { return null; }
+		for (Entry<Integer[],GameSprite> cachedSprites : cached.entrySet()) {
+			Integer[] coords = cachedSprites.getKey();
+			if (coords[0] == x && coords[1] == y) {
+				return cachedSprites.getValue();
+			}
+		}
+		
+		GameSprite sprite = new GameSprite(sheet.getSubimage(lengthX*x, lengthY*y, lengthX, lengthY), transparent);
+		
+		
+		cached.put(new Integer[]{x,y}, sprite);
+		return sprite;
+	}
 	public GameSprite getSpriteRange(int startX, int startY, int endX, int endY) {
 		BufferedImage collectedImage = GameSprite.createCompatibleImage((endX-startX+1)*lengthX, (endY-startY+1)*lengthY, BufferedImage.TYPE_INT_ARGB);
 		Graphics2D collectedGraphics = collectedImage.createGraphics();
@@ -65,4 +80,5 @@ public class SpriteSheet {
 	public int getLengthX() { return lengthX; }
 	public int getLengthY() { return lengthY; }
 	public BufferedImage getSheet() { return sheet; }
+
 }

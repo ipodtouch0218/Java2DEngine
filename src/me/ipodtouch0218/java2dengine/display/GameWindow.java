@@ -8,7 +8,7 @@ import java.awt.image.BufferedImage;
 
 import javax.swing.JFrame;
 
-import org.jogamp.glg2d.GLG2DCanvas;
+// import org.jogamp.glg2d.GLG2DCanvas;
 
 import me.ipodtouch0218.java2dengine.GameEngine;
 
@@ -26,10 +26,17 @@ public class GameWindow extends JFrame {
 		setLocationRelativeTo(null);
 		
 		setFocusable(true);
-		setContentPane(GameEngine.getInstance().getRenderer());
+		//TODO: fix glg2d for opengl rendering.
+//		try {
+//			setContentPane(new GLG2DCanvas(GameEngine.getRenderer()));
+//		} catch (Exception e) {
+//			e.printStackTrace();
+//			setContentPane(GameEngine.getRenderer());
+//		}
+		setContentPane(GameEngine.getRenderer());
 		setVisible(true);
 		pack();
-		toFront();		
+		toFront();	
 		requestFocus();
 		requestFocusInWindow();
 	}
@@ -51,7 +58,7 @@ public class GameWindow extends JFrame {
 		setWidth = width;
 		setHeight = height;
 		
-		Dimension size = new Dimension((int) (width*scaleX), (int) (height*scaleY)+47);
+		Dimension size = new Dimension((int) (width*scaleX), (int) (height*scaleY));
 		getWindow().getContentPane().setPreferredSize(size);
 		getWindow().pack();
 	}

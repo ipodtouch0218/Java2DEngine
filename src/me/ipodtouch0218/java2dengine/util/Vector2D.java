@@ -116,9 +116,8 @@ public class Vector2D implements Cloneable {
 	}
 	
 	public Vector2D setMagnitude(double magnitude) {
-		float angle = getAngleDegrees();
-		dx = magnitude*Math.cos(angle);
-		dy = magnitude*Math.sin(angle);
+		normalize();
+		multiply(magnitude);
 		
 		return this;
 	}

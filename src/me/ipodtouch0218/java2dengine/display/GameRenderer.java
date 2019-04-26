@@ -2,6 +2,7 @@ package me.ipodtouch0218.java2dengine.display;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
+import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsConfiguration;
 import java.awt.GraphicsEnvironment;
@@ -18,29 +19,22 @@ import me.ipodtouch0218.java2dengine.object.GameObject;
 public class GameRenderer extends JComponent {
 
 	private static final long serialVersionUID = 1L;
-	private static final String os = System.getProperty("os.name").toLowerCase();
 	
-	private static GameRenderer instance;
-	
-	private Class<? extends GameObject>[] renderOrder;
-	private GameCamera activeCamera = new GameCamera(500,500);
-	private GameEngine engine;
-	private Color backgroundColor = Color.black;
+	private static Class<? extends GameObject>[] renderOrder;
+	private static GameCamera activeCamera = new GameCamera(500,500);
+	private static Color backgroundColor = Color.black;
 	private static VolatileImage background;
-	private boolean showSize = true;
-	private double resizeDecay;
 	
-	private VolatileImage renderImage;
-	private int oldx,oldy;
+	private static boolean showSize = true;
+	private static double resizeDecay;
 	
-	public GameRenderer(GameEngine engine) {
-		this.engine = engine;
-		instance = this;
-	}
+	private static VolatileImage renderImage;
+	private static int oldx, oldy;
+	
 	
 	public void render(double delta) {
 		if (renderImage == null || renderImage.validate(gc) == VolatileImage.IMAGE_INCOMPATIBLE || renderImage.getWidth() != GameWindow.getSetWidth() || renderImage.getHeight() != GameWindow.getSetHeight()) {
-			renderImage = createVolatile(GameWindow.getSetWidth(), GameWindow.getSetHeight(), false);
+			renderImage = createVolatile(GameWindow.getSetWidth(), GameWindow.getSetHeight(), true);
 			renderImage.setAccelerationPriority(1);
 		}
 
@@ -56,7 +50,6 @@ public class GameRenderer extends JComponent {
 		
 		///
 		
-		
 		renderGameObjects(g);
 		
 		if (background != null) {
@@ -67,31 +60,31 @@ public class GameRenderer extends JComponent {
 		
 		///
 		
-		if (oldx != GameWindow.getActualWidth() || oldy != GameWindow.getActualHeight()) {
-			resizeDecay = 2;
-		}
-		resizeDecay -= delta;
-		renderResizeInfo(g);
-		
+		renderResizeInfo(g, delta);
 		
 		///
 		g.dispose();
 		getGraphics().drawImage(renderImage, 0, 0, GameWindow.getActualWidth(), GameWindow.getActualHeight(), null);
 		oldx = GameWindow.getActualWidth();
 		oldy = GameWindow.getActualHeight();
-		if (os.indexOf("mac") >= 0) {
-			GameWindow.getWindow().repaint();
-		}
+
+		repaint();
 	}
-	private void renderResizeInfo(Graphics2D g) {
+	
+	private void renderResizeInfo(Graphics2D g, double delta) {
+		if (oldx != GameWindow.getActualWidth() || oldy != GameWindow.getActualHeight()) {
+			resizeDecay = 2;
+		}
 		if (showSize && resizeDecay > 0) {
+			resizeDecay -= delta;
 			g.setColor(Color.WHITE);
 			g.drawString(GameWindow.getActualWidth() + " x " + GameWindow.getActualHeight(), 4, GameWindow.getSetHeight()-12);
 		}
 	}
 	
 	private void renderGameObjects(Graphics2D g) {
-		ArrayList<GameObject> toRender = engine.getAllGameObjects();
+		@SuppressWarnings("unchecked")
+		ArrayList<GameObject> toRender = (ArrayList<GameObject>) GameEngine.getAllGameObjects().clone();
 		ArrayList<GameObject[]> remaining = new ArrayList<>();
 		
 		if (renderOrder != null) {
@@ -101,7 +94,7 @@ public class GameRenderer extends JComponent {
 				whileloop:
 				while (renders.hasNext()) {
 					GameObject nextObject = renders.next();
-					if (nextObject == null || !nextObject.isRendering()) { continue whileloop; }
+					if (nextObject == null) { continue whileloop; }
 					if (render.isAssignableFrom(nextObject.getClass())) { 
 						lastRenders.add(nextObject);
 						renders.remove();
@@ -119,7 +112,11 @@ public class GameRenderer extends JComponent {
 	
 	private void renderObj(GameObject obj, Graphics2D g) {
 		if (obj == null) { return; }
-		obj.render(g);
+		try {
+			obj.render(g);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 
 	//---------//
@@ -136,26 +133,21 @@ public class GameRenderer extends JComponent {
 	
 	@SafeVarargs
 	public static void setRenderPriority(Class<? extends GameObject>... classes) {
-		if (instance == null) { return; }
-		instance.renderOrder = classes; 
+		renderOrder = classes; 
 	}
 	public static void setActiveCamera(GameCamera cam) { 
-		if (instance == null) { return; }
-		instance.activeCamera = cam; 
+		activeCamera = cam; 
 	}
 	public static void setBackgroundColor(Color value) { 
-		if (instance == null) { return; }
-		instance.backgroundColor = value;
+		backgroundColor = value;
 	}
 
 	//getters
 	public static GameCamera getActiveCamera() { 
-		if (instance == null) { return null; }
-		return instance.activeCamera; 
+		return activeCamera; 
 	}
 	public static VolatileImage getLastFrame() { 
-		if (instance == null) { return null; }
-		return instance.renderImage; 
+		return renderImage; 
 	}
 	
 	//static methods
@@ -165,6 +157,7 @@ public class GameRenderer extends JComponent {
 		Graphics2D newG = newImg.createGraphics();
 		newG.setComposite(AlphaComposite.Clear);
 		newG.fillRect(0, 0, width, height);
+		newG.setComposite(AlphaComposite.SrcOver);
 		newG.dispose();
 		return newImg;
 	}
@@ -174,5 +167,11 @@ public class GameRenderer extends JComponent {
 
 	public static void removeBackground() {
 		background = null;
+	}
+	
+	//other
+	@Override
+	protected void paintComponent(Graphics g) {
+		g.drawImage(renderImage, 0, 0, GameWindow.getActualWidth(), GameWindow.getActualHeight(), null);
 	}
 }

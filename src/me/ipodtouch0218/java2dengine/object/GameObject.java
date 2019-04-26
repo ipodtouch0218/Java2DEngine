@@ -13,13 +13,11 @@ public abstract class GameObject implements Cloneable {
 	protected GameSprite sprite;
 	private boolean rendering = true, ticking = true;
 	private UUID uuid = UUID.randomUUID();
-	private boolean exists = true;
 	
 	public void tick(double delta) {}
 	public void onCreate() {}
 	public void onRemove() {}
 	public final void remove() {
-		exists = false;
 		onRemove();
 	}
 	
@@ -73,9 +71,6 @@ public abstract class GameObject implements Cloneable {
 	}
 	public void setRendering(boolean value) {
 		this.rendering = value;
-	}
-	public boolean exists() {
-		return exists;
 	}
 	//---Others---//
 	public GameObject clone() {

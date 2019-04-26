@@ -2,115 +2,124 @@ package me.ipodtouch0218.java2dengine.sound;
 
 import java.io.BufferedInputStream;
 
+import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.Clip;
-import javax.sound.sampled.FloatControl;
-import javax.sound.sampled.Line;
-import javax.sound.sampled.LineEvent;
-import javax.sound.sampled.LineListener;
+import javax.sound.sampled.DataLine;
+import javax.sound.sampled.SourceDataLine;
 
 public class StreamedSound {
 
-	private boolean playing = false;
+	private boolean playing;
+	
 	private String dir;
-	private float volume = -5f;
-	private long frameLength = 1;
-	private int startPoint = 0;
+	private double bufferSize;
+	private long startpos;
 	
-	private Clip tempClip; 
+	private long framePos;
 	
-	public StreamedSound(String dir) {
+	public StreamedSound(String dir, double bufferSize) {
 		this.dir = dir;
+		this.bufferSize = bufferSize;
 	}
 	
 	public void play() {
-		play(startPoint);
-	}
-	public void play(int pos) {
-		if (tempClip == null) {
-			load();
-		}
-		if (tempClip == null) { return; }
-		if (tempClip.isActive()) { return; }
-		tempClip.setFramePosition(pos);
-		FloatControl gainControl = (FloatControl) tempClip.getControl(FloatControl.Type.MASTER_GAIN);
-		gainControl.setValue(volume); // Reduce volume by 10 decibels.
-		tempClip.start();
-		playing = true;
-	}
-	public void loop(int start, int end, int times) {
-		if (tempClip == null) {
-			load();
-		}
-		if (tempClip == null) { return; }
-		if (tempClip.isActive()) { return; }
-		tempClip.setFramePosition(startPoint);
 		try {
-		tempClip.setLoopPoints(start, end);
-
-		FloatControl gainControl = (FloatControl) tempClip.getControl(FloatControl.Type.MASTER_GAIN);
-		gainControl.setValue(volume); // Reduce volume by 10 decibels.
-		} catch (Exception e) {}
-		tempClip.loop(times);
-		playing = true;
-	}
-	public void stop() {
-		if (playing && tempClip != null) {
-			tempClip.stop();
-			tempClip = null;
-		}
-		playing = false;
+		    AudioInputStream audioStream = AudioSystem.getAudioInputStream(new BufferedInputStream(StreamedSound.class.getResourceAsStream("/res/sounds/" + dir)));
+		    AudioFormat audioFormat = audioStream.getFormat();
+		    DataLine.Info info = new DataLine.Info(SourceDataLine.class, audioFormat);
+		    SourceDataLine sourceLine = (SourceDataLine) AudioSystem.getLine(info);
+		    sourceLine.open(audioFormat);
+		    sourceLine.start();
+	
+		    //right now, the line is set up and all data is availible
+		    new Thread(()->{
+		    	playing = true;
+		    	byte[] buffer = new byte[(int) (audioFormat.getSampleRate()*bufferSize)];
+		    	long bytesRead = startpos;
+		    	try {
+			    	while (playing) {
+			    		if (bytesRead != -1) {
+				        	bytesRead = audioStream.read(buffer, 0, buffer.length);
+							framePos += (bytesRead/audioFormat.getFrameSize());
+							
+				        	sourceLine.write(buffer, 0, buffer.length);
+			    		} else {
+			    			playing = false;
+			    		}
+			    	}
+			    	
+				    sourceLine.drain();
+				    sourceLine.close();
+		    	} catch (Exception e) { e.printStackTrace(); }
+		    }).start();
+		} catch (Exception e) { e.printStackTrace(); }
 	}
 	
-	private void load() {
-		Line.Info linfo = new Line.Info(Clip.class);
-		Line line = null;
-		AudioInputStream ais = null;
+	public void loop(int times) {
+		loop(0, -1, times);
+	}
+	
+	public void loop(long loopStart, long loopEnd, int times) {
 		try {
-			line = AudioSystem.getLine(linfo);
-			ais = AudioSystem.getAudioInputStream(new BufferedInputStream(StreamedSound.class.getResourceAsStream("/res/sounds/" + dir)));
-			
-			tempClip = (Clip) line;
-			tempClip.addLineListener(new LineListener() {
-				public void update(LineEvent event) {
-					if (event.getType() == LineEvent.Type.STOP) {
-						tempClip.close();
-						tempClip = null;
-					}
-				}
-			});
-			
-			tempClip.open(ais);
+		    AudioInputStream audioStream = AudioSystem.getAudioInputStream(StreamedSound.class.getResourceAsStream("/res/sounds/" + dir));
+		    AudioFormat audioFormat = audioStream.getFormat();
+		    DataLine.Info info = new DataLine.Info(SourceDataLine.class, audioFormat);
+		    SourceDataLine sourceLine = (SourceDataLine) AudioSystem.getLine(info);
+		    sourceLine.open(audioFormat);
+		    sourceLine.start();
+	
+		    //right now, the line is set up and all data is availible
+		    new Thread(()->{
+		    	playing = true;
+		    	byte[] buffer = new byte[4096];
+		    	long bytesRead = 0;
+		    	framePos = startpos;
+		    	int loops = 0;
+		    	long loopEndPos = (loopEnd == -1 ? audioStream.getFrameLength() : loopEnd);
+		    	
+		    	try {
+		    		audioStream.skip(startpos);
+			    	while (playing) {
+			    		
+			        	bytesRead = audioStream.read(buffer, 0, buffer.length);
+						framePos += (bytesRead/audioFormat.getFrameSize());
+						
+			        	sourceLine.write(buffer, 0, buffer.length);
+			    		
+			    		
+			    		if (bytesRead <= 0 || framePos >= loopEndPos) {
+			    			loops++;
+			    			if (loops != times) {
+//			    				audioStream.close();
+			    				audioStream.reset();
+			    				audioStream.skip(loopStart);
+			    				framePos = loopStart;
+			    			} else {
+			    				playing = false;
+			    			}
+			    		}
+			    	}
+				    sourceLine.close();
+		    	} catch (Exception e) { 
+		    		e.printStackTrace(); 
+		    	}
+		    }).start();
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
-	
-	public void setStartingPos(int pos) {
-		startPoint = pos;
+
+	public void stop() {
+		playing = false;
 	}
 	
+	//--setters--//
+	public void setStartPos(long startpos) {
+		this.startpos = startpos;
+	}
 	
-	public String getDir() { return dir; }
-	public String getFile() {
-		String[] folders = dir.split("/");
-		return folders[folders.length-1];
-	}
-	public boolean isPlaying() { 
-		return playing; 
-	}
-	public long getFramePosition() {
-		if (tempClip == null) {
-			return 0;
-		}
-		return tempClip.getLongFramePosition();
-	}
-	public long getFrameLength() {
-		if (tempClip != null) {
-			frameLength = tempClip.getFrameLength();
-		}
-		return Math.max(1, frameLength);
-	}
+	//--getters--//
+	public boolean isPlaying() { return playing; }
+	public long getFramePos() { return framePos; }
 }
