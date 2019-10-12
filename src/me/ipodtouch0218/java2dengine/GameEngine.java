@@ -20,10 +20,7 @@ public class GameEngine implements Runnable {
 	private static ArrayList<GameObject> gameObjects = new ArrayList<>(); //generic list of all objects. looped through for rendering and ticking each frame.
 	private static ArrayList<EventHandler> eventHandlers = new ArrayList<>(); //list of event handlers, sorted by priority.
 	private static ArrayList<SyncTask> syncTasks = new ArrayList<>(); //list of all tasks. tasks are iterated through each tick method, and will call its runnable if the timer <= 0
-	
-//	private static ArrayList<GameObject> toAddObjects = new ArrayList<>(); //list of all objects that should be created next tick.
-//	private static ArrayList<GameObject> toRemoveObjects = new ArrayList<>(); //list of all objects that should be removed on the tick
-	
+
 	private static double fps; //the current framerate of the engine
 	private static double maxfps = 60; //the maximum allowed framerate of the engine. 
 	private static boolean allowSlowdown; //if the game shoud slow-down or skip frames
