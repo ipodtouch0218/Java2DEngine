@@ -157,7 +157,6 @@ public class GameEngine implements Runnable {
 //		toAddObjects.add(object);
 		object.onCreate();
 		gameObjects.add(object);
-		System.out.println("add: " + object);
 		return object;
 	}
 	public static synchronized <T extends GameObject> T addGameObject(T object, double x, double y) {
@@ -170,7 +169,6 @@ public class GameEngine implements Runnable {
 //		toRemoveObjects.add(object);
 		object.onRemove();
 		gameObjects.remove(object);
-		System.out.println("remove: " + object);
 	}
 	public static synchronized void removeGameObject(UUID uuid) {
 		GameObject toRemove = getGameObject(uuid);
